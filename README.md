@@ -1,3 +1,4 @@
 # CS2106
-
-Assignments for CS2106, Operating Systems
+Sup Homies, this is for our assignments for CS2106 'Operating Systems'
+<br>
+Feel free to copy :)
