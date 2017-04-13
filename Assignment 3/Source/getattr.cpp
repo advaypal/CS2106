@@ -8,6 +8,7 @@ int main(int ac, char **av)
 		printf("Prints: 'R' = Read only, 'W' = Read/Write\n\n");
 		return -1;
 	}
-
+	initFS("part.dsk", "randompassword");
+	closeFile();
 	return 0;
 }

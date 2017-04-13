@@ -8,6 +8,15 @@ int main(int ac, char **av)
 		printf("Attribute: 'R' = Read only, 'W' = Read/Write\n\n");
 		return -1;
 	}
-
+	initFS("part.dsk", "randompassword");
+    int code; 
+	switch (av[2]){
+		case 'R' : ;
+		case 'r' : code = 1; break;
+		case 'W' : ;
+		case 'w' : code = 2; break;
+		default  : code = 0;
+	}
+	closeFS();
 	return 0;
 }

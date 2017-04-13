@@ -28,7 +28,7 @@ int openFile(const char *filename, unsigned char mode)
 	unsigned long *inodeBuffer = makeInodeBuffer();
 	char *dataBuffer = makeDataBuffer();
 	if (inode  == FS_FILE_NOT_FOUND) {
-		//Create file
+		//Create file	
 		if (mode != MODE_CREATE) {
 			inodeBuffer.close();
 			dataBuffer.close();
@@ -121,7 +121,7 @@ void writeFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCou
 		return;		
 	}
 
-	unsigned int dataToWriteSize = sizeof(dataSize) * dataCount;
+	unsigned int dataToWriteSize = dataSize * dataCount;
 	int count = 0;
 	unsigned int writePtr = currentFile.writePtr;
 	char* fileBuffer = currentFile.buffer;
@@ -188,7 +188,7 @@ void readFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCoun
 		return;		
 	}
 
-	unsigned int dataToReadSize = sizeof(dataSize) * dataCount;
+	unsigned int dataToReadSize = dataSize * dataCount;
 	int count = 0;
 	unsigned int readPtr = currentFile.readPtr;
 	char* fileBuffer = currentFile.buffer;
@@ -240,6 +240,19 @@ void delFile(const char *filename)
 	}
 	updateFreeList();	
 	updateDirectory();
+}
+
+int getAttribute(char* fileName) {
+	int code = getAttr(fileName);
+	if (code != FS_FILE_NOT_FOUND) 
+		switch (code) {
+			case 1 : return 'R';
+			case 2 : return 'W';
+		}
+ }
+
+int setAttribute(char mode, char* fileName) {
+	setAttr(fileName, mode);
 }
 
 // Close a file. Flushes all data buffers, updates inode, directory, etc.
