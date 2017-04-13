@@ -17,17 +17,18 @@ int main(int ac, char **av)
 	}
 
 	//create buffer
-	unsigned long len = fread(buffer, sizeof(char), fs->blockSize, fp);
+	char *buffer = makeNewDataBuffer();
+	unsigned long len = fread(buffer, sizeof(char), 8192, fp);
 
 	initFS("part.dsk", av[2]);	
-	int fileOpen = openFile(MODE_APPEND, av[1]);
+	int fileOpen = openFile(av[1], MODE_READ_APPEND);
 	if(fileOpen != -1) {
 		printf("DUPLICATE FILE ERROR\n");
 		closeFile(fileOpen);
 		closeFS();
 		exit(-1);
 	}
-	fileOpen = openFile(MODE_CREATE, av[1]);
+	fileOpen = openFile(av[1], MODE_CREATE);
 	writeFile(fileOpen, buffer, sizeof(char), (int)(len / sizeof(char)));
 	closeFile(fileOpen);	
 	closeFS();
