@@ -17,19 +17,22 @@ int main(int ac, char **av)
 	}
 
 	//create buffer
+	fseek(fp, 0, SEEK_END);
+	int size = ftell(fp);
+	rewind(fp);
 	char *buffer = makeNewDataBuffer();
-	unsigned long len = fread(buffer, sizeof(char), 8192, fp);
+	unsigned long len = fread(buffer, sizeof(char), size , fp);
 
 	initFS("part.dsk", av[2]);	
-	int fileOpen = openFile(av[1], MODE_READ_APPEND);
-	if(fileOpen != -1) {
-		printf("DUPLICATE FILE ERROR\n");
-		closeFile(fileOpen);
-		closeFS();
-		exit(-1);
+	//check if file exists
+	int isFile = fileExists(av[1]);
+	if(isFile == 0){
+		printf("DUPLICATE FILE ERROR");
+		return -1;
 	}
-	fileOpen = openFile(av[1], MODE_CREATE);
+	int fileOpen = openFile(av[1], MODE_CREATE);
 	writeFile(fileOpen, buffer, sizeof(char), (int)(len / sizeof(char)));
+	delete buffer;
 	closeFile(fileOpen);	
 	closeFS();
 	return 0;

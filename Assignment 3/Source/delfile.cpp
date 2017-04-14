@@ -9,6 +9,6 @@ int main(int ac, char **av)
 	}
 	initFS("part.dsk", "randompassword");
 	delFile(av[1]);
-	closeFS()
+	closeFS();
 	return 0;
 }

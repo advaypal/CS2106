@@ -9,20 +9,22 @@ int main(int ac, char **av)
 	}
 	initFS("part.dsk", av[2]);
 	//create a buffer
-	int fileOpen = openFile(MODE_READ_ONLY, av[1]);
+	char *buffer = makeNewDataBuffer();
+	int fileOpen = openFile(av[1], MODE_READ_ONLY);
 	if (fileOpen == -1) {
 		printf("FILE NOT FOUND");
-		closeFS()
+		closeFS();
 		exit(-1);
 	}
 	//define len
 	//are they both the same?
-	readFile(fileOpen, buffer, sizeof(char), len);
+	unsigned long size = getFileSize(av[1]);
+	readFile(fileOpen, buffer, sizeof(char), size);
 
 	FILE *fp = fopen(av[1], "w");
 
 	// Write the data
-	fwrite(buffer, sizeof(char), len, fp);
+	fwrite(buffer, sizeof(char), size, fp);
 
 	// Close the file
 	fclose(fp);

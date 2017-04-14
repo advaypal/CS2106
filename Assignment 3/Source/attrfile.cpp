@@ -8,15 +8,23 @@ int main(int ac, char **av)
 		printf("Attribute: 'R' = Read only, 'W' = Read/Write\n\n");
 		return -1;
 	}
+
 	initFS("part.dsk", "randompassword");
     int code; 
-	switch (av[2]){
-		case 'R' : ;
-		case 'r' : code = 1; break;
-		case 'W' : ;
-		case 'w' : code = 2; break;
-		default  : code = 0;
+	if (strcmp(av[2],"r") == 0 || strcmp(av[2], "R") == 0) {
+		code = 0b101;
+	} else if (strcmp(av[2],"w") == 0 || strcmp(av[2], "W") == 0) {
+		code = 0b001;
+	} else {
+		printf("%s\n", "Invalid code");
+		closeFS();
+		return -1;
 	}
+	int result = setAttribute(av[1], code);
+	if(result == 0) {
+		printf("File not found ERROR");
+	}
+
 	closeFS();
 	return 0;
 }

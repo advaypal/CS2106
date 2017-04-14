@@ -1,4 +1,4 @@
-#include "efs.h"
+#include "libefs.h"
 
 // FS Descriptor
 TFileSystemStruct *_fs;
@@ -14,6 +14,8 @@ int _oftCount=0;
 void initFS(const char *fsPartitionName, const char *fsPassword)
 {
 	mountFS(fsPartitionName, fsPassword);
+	_fs = getFSInfo();
+	_oft = (TOpenFile *) calloc(sizeof(TOpenFile), _fs->maxFiles);
 }
 
 // Opens a file in the partition. Depending on mode, a new file may be created
@@ -30,8 +32,8 @@ int openFile(const char *filename, unsigned char mode)
 	if (inode  == FS_FILE_NOT_FOUND) {
 		//Create file	
 		if (mode != MODE_CREATE) {
-			inodeBuffer.close();
-			dataBuffer.close();
+			delete inodeBuffer;
+			delete dataBuffer;
 			return -1;
 		}
 		inode = makeDirectoryEntry(filename, 0, 0);
@@ -50,7 +52,7 @@ int openFile(const char *filename, unsigned char mode)
 	//FS constraints		
 	} else {
 		loadInode(inodeBuffer, inode);
-		if (mode != MODE_APPEND) {
+		if (mode != MODE_READ_APPEND) {
 			block = returnBlockNumFromInode(inodeBuffer, 0);
 			readPtr = writePtr = filePtr = 0;		
 			readBlock(dataBuffer, block);
@@ -58,22 +60,23 @@ int openFile(const char *filename, unsigned char mode)
 			block = returnBlockNumFromInode(inodeBuffer, filePtr - 1);
 			readPtr =  0;
 			filePtr = getFileLength(filename);
-			writePtr = filePtr % (*(_fs).blockSize);
+			writePtr = filePtr % (_fs->blockSize);
 			readBlock(dataBuffer, block);
 		}
 	}
 		
 	//Create OFT entry
-	TOpenFile newOFT = new TOpenFile();
-	newOFT.openMode = mode;
-	newOFT.blockSize = *(_fs).blockSize;
-	newOFT.inode = inode;
-	newOFT.inodeBuffer = inodeBuffer;
-	newOFT.buffer = dataBuffer;
-	newOFT.readPtr = readPtr;
-	newOFT.writePtr = writePtr;
-	newOFT.filePtr = filePtr;
-	newOFT.fileName = filename;
+	TOpenFile *newOFT = new TOpenFile();
+	newOFT->openMode = mode;
+	newOFT->blockSize = _fs->blockSize;
+	newOFT->inode = inode;
+	newOFT->inodeBuffer = inodeBuffer;
+	newOFT->buffer = dataBuffer;
+	newOFT->readPtr = readPtr;
+	newOFT->writePtr = writePtr;
+	newOFT->filePtr = filePtr;
+	newOFT->fileName = filename;
+	newOFT->DELETED = false;
 	/*
 	newOFT.next = *(_oft);
 	*(_oft).prev = newOFT;
@@ -82,7 +85,7 @@ int openFile(const char *filename, unsigned char mode)
 	_oft = &newOFT;
 	*/
 	updateDirectory();
-	_oft[_oftCount++] = newOFT;
+	_oft[_oftCount++] = *newOFT;
 	return _oftCount - 1;
 
 	//Limit on number of files?
@@ -113,23 +116,23 @@ void writeFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCou
 		}
 	}
 	**/
-	TOpenFile currentFile = _oft[fp];
-	if (currentFile == null) {
+	TOpenFile *currentFile = &_oft[fp];
+	if (currentFile == NULL) {
 		return;
 	}
-	if (currentFile.openMode == MODE_READ_ONLY) {
+	if (currentFile->openMode == MODE_READ_ONLY) {
 		return;		
 	}
 
 	unsigned int dataToWriteSize = dataSize * dataCount;
 	int count = 0;
-	unsigned int writePtr = currentFile.writePtr;
-	char* fileBuffer = currentFile.buffer;
-	//May be fucking error
-	unsigned int filePtr = currentFile.filePtr;
-	unsigned long block = returnBlockNumFromInode(currentFile.inodeBuffer, filePtr);
+	unsigned int writePtr = currentFile->writePtr;
+	char* fileBuffer = currentFile->buffer;
+	char *mybuffer = (char *) buffer;
+	unsigned int filePtr = currentFile->filePtr;
+	unsigned long block = returnBlockNumFromInode(currentFile->inodeBuffer, filePtr);
 	while (count < dataToWriteSize) {
-		if (writePtr == (*(_fs).blocksize - 1)) {
+		if (writePtr == (_fs->blockSize - 1)) {
 			//Write it to disk
 			writeBlock(fileBuffer, block); 
 			block = findFreeBlock();
@@ -138,35 +141,43 @@ void writeFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCou
 			}
 			markBlockBusy(block);
 			updateFreeList();
-			setBlockNumInInode(currentFile.inodeBuffer, filePtr, block);
-			saveInode(currentFile.inodeBuffer, currentFile.inode);
+			setBlockNumInInode(currentFile->inodeBuffer, filePtr, block);
+			saveInode(currentFile->inodeBuffer, currentFile->inode);
 			//Empty the buffer
 			strcpy(fileBuffer, "");
+			//count += _fs->blockSize;
 			writePtr = 0;
 		}
-		fileBuffer[writePtr] = buffer[count + writePtr];
-		count ++;
+		fileBuffer[writePtr] = mybuffer[count];
 		writePtr ++;
+		count++;
 		filePtr ++;
 	}
-	currentFile.filePtr = filePtr;
-	currentFile.writePtr = writePtr;
-	//Should we do this??
-	writeBlock(fileBuffer, currentFile.block);
-	updateDirectoryFileLength(currentFile.fileName, filePtr);
-	updateDirectory();		
+	currentFile->filePtr = filePtr;
+	currentFile->writePtr = writePtr;
+
+
+	flushFile(fp);	
 }
 
 // Flush the file data to the disk. Writes all data buffers, updates directory,
 // free list and inode for this file.
 void flushFile(int fp)
 {
-	// writeBlock(fileBuffer, currentFile.block);
-	// updateDirectoryFileLength(currentFile.fileName, filePtr);
-	// updateDirectory();	
+	TOpenFile *currentFile = &_oft[fp];
+	unsigned int filePtr = currentFile->filePtr;
+	unsigned long block = returnBlockNumFromInode(currentFile->inodeBuffer, filePtr);
+	char* fileBuffer = currentFile->buffer;
+	writeBlock(fileBuffer, block);
+	updateDirectoryFileLength(currentFile->fileName, filePtr);
+	updateDirectory();
  
 }
 
+
+char *makeNewDataBuffer() {
+	return makeDataBuffer();
+}
 // Read data from the file.
 void readFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCount)
 {
@@ -179,32 +190,53 @@ void readFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCoun
 		}
 	}
 	**/
-	TOpenFile currentFile = _oft[fp];
-	if (currentFile == null) {
+	TOpenFile *currentFile = &_oft[fp];
+	if (currentFile == NULL) {
 		return;
 	}
 	//Allow read in append?
-	if (currentFile.openMode == MODE_APPEND) {
+	if (currentFile->openMode == MODE_READ_APPEND) {
 		return;		
 	}
 
+	char *mybuffer = (char *)buffer;
 	unsigned int dataToReadSize = dataSize * dataCount;
 	int count = 0;
-	unsigned int readPtr = currentFile.readPtr;
-	char* fileBuffer = currentFile.buffer;
-	unsigned long block = returnBlockNumFromInode(currentFile.inodeBuffer, filePtr);
+	unsigned int readPtr = currentFile->readPtr, filePtr = currentFile->filePtr;
+	char* fileBuffer = currentFile->buffer;
+	unsigned long block = returnBlockNumFromInode(currentFile->inodeBuffer, filePtr);
 	while (count < dataToReadSize) {
-		if (readPtr == (*(_fs).blocksize - 1)) {
+		if (readPtr == (_fs->blockSize - 1)) {
 			//Empty the buffer
 			strcpy(fileBuffer, "");
+			//count += _fs->blockSize;
 			readPtr = 0;
-			block = returnBlockNumFromInode(currentFile.inodeBuffer, filePtr);
+			block = returnBlockNumFromInode(currentFile->inodeBuffer, filePtr);
 			readBlock(fileBuffer, block);
 		}
-		buffer[count + readPtr] = fileBuffer[readPtr];
-		count ++;
+		mybuffer[count] = fileBuffer[readPtr];
+		count++;
 		readPtr++;
 		filePtr ++;
+	}
+}
+
+int getAttribute(char* fileName) {
+	int code = getattr(fileName);
+	if (code != FS_FILE_NOT_FOUND) {
+		return code;
+	} else {
+		return 0;
+	}
+ }
+
+int setAttribute(char* fileName, int mode) {
+	unsigned int isFilePresent = findFile(fileName);
+	if (isFilePresent != FS_FILE_NOT_FOUND) {
+		setattr(fileName, mode);
+		return 1;
+	} else {
+		return 0;
 	}
 }
 
@@ -213,62 +245,67 @@ void readFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCoun
 void delFile(const char *filename) 
 {
 	//Check if file exists, return -1 if not
-	unsigned int inode = delDirectoryEntry(filename);
-	if (inode == FS_FILE_NOT_FOUND) {
+	int attr = getattr(filename);
+	if ((attr & 0b100) == 4) {
+		printf("CANNOT DELETE READ-ONLY FILE");
 		return;
 	}
-	//Check if TDirectory.attr (2nd bit) is not set to 1
+	unsigned int inode = delDirectoryEntry(filename);
+	if (inode == FS_FILE_NOT_FOUND) {
+		printf("FILE DOES NOT EXIST");
+		return;
+	}	
 
-	TOpenFile current = null;
+	TOpenFile *current = NULL;
 	for (int i = 0; i < _oftCount; i++) {
-		current = _oftCount[i];
-		if (current == null) {
+		current = &_oft[i];
+		if ((current->DELETED)) {
 			continue;
 		}
-		if (current.fileName.strcmp(filename) == 0) {
+		if (strcmp(filename, current->fileName) == 0) {
+			current = &_oft[i];
 			break;
 		}
 	}
-	if (current != null) {
+	if (current == NULL || (current -> DELETED)) {
 		return;
 	}
-	
-	//free blocks
+	//free blockSize
 	unsigned int i;
-	for (i = 0; i < currentFile.filePtr; i += *(_fs).blockSize) {
-		markBlockFree(returnBlockNumFromInode(i));	
+	for (i = 0; i < current->filePtr; i += _fs->blockSize) {
+
+		markBlockFree(returnBlockNumFromInode(current->inodeBuffer,i));	
 	}
-	updateFreeList();	
-	updateDirectory();
+
 }
 
-int getAttribute(char* fileName) {
-	int code = getAttr(fileName);
-	if (code != FS_FILE_NOT_FOUND) 
-		switch (code) {
-			case 1 : return 'R';
-			case 2 : return 'W';
-		}
- }
-
-int setAttribute(char mode, char* fileName) {
-	setAttr(fileName, mode);
+unsigned long getFileSize(char *fileName) {
+	return getFileLength(fileName);
 }
 
 // Close a file. Flushes all data buffers, updates inode, directory, etc.
 void closeFile(int fp)
 {
-
-	TOpenFile currentFile = _oft[fp];
+	flushFile(fp);
+	TOpenFile *currentFile = &_oft[fp];
 	//free all resources
-	delete [] currentFile.dataBuffer;
-	delete [] currentFile.inodeBuffer;
-	delete currentFile;
-	_oft[fp] = null;
+	delete [] currentFile->buffer;
+	delete [] currentFile->inodeBuffer;
+	currentFile->DELETED = true;
 }
 // Unmount file system.
 void closeFS()
 {
+	delete _oft;
 	unmountFS();
+}
+
+int fileExists(char *filename) {
+	unsigned int ndx = findFile(filename);
+	if (ndx != FS_FILE_NOT_FOUND) {
+		return 0;
+	} else {
+		return 1;
+	}
 }
 

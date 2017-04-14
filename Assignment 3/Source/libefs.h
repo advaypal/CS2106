@@ -22,7 +22,8 @@ typedef struct oft
   unsigned int writePtr; // Buffer index for writing data
   unsigned int readPtr; // Buffer index for reading data
   unsigned int filePtr; // File pointer. Points relative to ALL data in a file, not just the current buffer
-  char* fileName;
+  const char* fileName;
+  bool DELETED;
   //oft next;
   //oft prev;
   //unsigned int id;
@@ -46,6 +47,9 @@ int openFile(const char *filename, unsigned char mode);
 // Note dataSize * dataCount can exceed the size of one block.
 void writeFile(int fp, void *buffer, unsigned int dataSize, unsigned int dataCount);
 
+// Create a new buffer 
+char *makeNewDataBuffer();
+
 // Flush the file data to the disk. Writes all data buffers, updates directory,
 // free list and inode for this file.
 void flushFile(int fp);
@@ -63,6 +67,18 @@ void delFile(const char *filename);
 // Close a file. Flushes all data buffers, updates inode, directory, etc.
 void closeFile(int fp);
 
+//Get file length
+unsigned long getFileSize(char *fileName);
+
+// Get the attribute of the file
+int getAttribute(char* fileName);
+
+// Set the attribute of the file
+int setAttribute(char* fileName, int mode);
+
 // Unmount file system.
 void closeFS();
+
+// Checks if file exists
+int fileExists(char *fileName);
 
